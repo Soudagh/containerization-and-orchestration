@@ -1,0 +1,6 @@
+.idea/
+.DS_Store
+# собранные бинарники сервисов
+lecture-1-docker/api/api
+# локальные копии дефолтов чартов
+*-defaults.yaml
