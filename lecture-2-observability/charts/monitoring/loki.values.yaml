@@ -1,0 +1,47 @@
+loki:
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: 2026-10-11
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+
+deploymentMode: SingleBinary
+
+singleBinary:
+  replicas: 1
+
+read:
+  replicas: 0
+
+write:
+  replicas: 0
+
+backend:
+  replicas: 0
+
+chunksCache:
+  enabled: false
+
+resultsCache:
+  enabled: false
+
+lokiCanary:
+  enabled: false
+
+test:
+  enabled: false
+
+minio:
+  enabled: false
+
+gateway:
+  enabled: false

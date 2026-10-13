@@ -1,0 +1,68 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "api.fullname" . }}
+  labels:
+    {{- include "api.labels" . | nindent 4 }}
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: api.rules
+      rules:
+        - alert: ApiHighErrorRate
+          expr: sum(rate(http_errors_total[1m])) / sum(rate(http_requests_total[1m])) > 0.3
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Доля 5xx-ответов api выше 30% дольше 5 минут"
+            description: >-
+              Пользователи массово получают ошибки.
+              1) Grafana, дашборд API RED: на каких маршрутах растут ошибки.
+              2) Explore → Loki: {namespace="app"} | json | level="ERROR" — текст ошибки;
+              клик по TraceID в строке откроет трейс в Jaeger (красный спан покажет, где упало).
+              3) Проверить, не было ли недавнего релиза: helm history api -n app;
+              если ошибки начались после него — helm rollback api -n app.
+        - alert: ApiFastMethodsHighLatency
+          expr: histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{route!="/slow"}[1m]))) > 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "p95 быстрых маршрутов api выше 1 секунды дольше 5 минут"
+            description: >-
+              Обычно эти маршруты отвечают за миллисекунды — пользователи ждут.
+              1) Дашборд API RED, панель Duration: какой маршрут деградировал, совпадает ли с ростом RPS.
+              2) Jaeger: сервис api, сортировка по длительности — какой спан съедает время.
+              3) Проверить ресурсы пода (CPU throttling, память): kubectl -n app top pod,
+              kubectl -n app describe pod -l app.kubernetes.io/name=api.
+        - alert: ApiSlowMethodsHighLatency
+          expr: histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{route="/slow"}[1m]))) >= 5
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "p95 /slow выше 5 секунд дольше 5 минут"
+            description: >-
+              /slow штатно отвечает за 1–3 с; 5 с и больше — это уже деградация, а не норма.
+              1) Jaeger: трейсы /slow — растёт ли сам slow-op или время уходит вне его.
+              2) Дашборд API RED: нет ли одновременного всплеска RPS (очередь, нехватка CPU).
+              3) Логи: {namespace="app"} | json | route="/slow" — duration_ms по запросам.
+        - alert: ApiComponentDown
+          expr: up{job="api", namespace="app", service="api"} == 0 or absent(up{job="api", namespace="app"})
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Сервис {{`{{ $labels.job }}`}} недоступен: метрики не снимаются или подов нет"
+            description: >-
+              Сервис полностью недоступен для пользователей.
+              1) kubectl -n app get pods,deploy,endpointslice — есть ли поды, Ready ли они.
+              2) kubectl -n app describe pod -l app.kubernetes.io/name=api и kubectl -n app get events
+              — CrashLoopBackOff, OOMKilled, ImagePullBackOff, проваленные пробы.
+              3) kubectl -n app logs deploy/api --previous — почему упал прошлый контейнер.
+              4) helm history api -n app — не связано ли с релизом; при необходимости helm rollback.
+{{- end}}

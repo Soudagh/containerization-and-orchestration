@@ -1,0 +1,9 @@
+env:
+  - name: ALERTMANAGER_URI
+    value: http://kps-kube-prometheus-stack-alertmanager.monitoring:9093
+
+resources:
+  requests:
+    memory: 50Mi
+  limits:
+    memory: 128Mi

@@ -1,0 +1,6 @@
+jaeger:
+  resources:
+    requests:
+      memory: 200M
+    limits:
+      memory: 300M
