@@ -1,0 +1,36 @@
+kind: PrometheusRule
+apiVersion: monitoring.coreos.com/v1
+metadata:
+  name: "api1-container"
+  namespace: "lab1"
+  labels: {release: kps}
+
+spec:
+  groups:
+    - name: api.rules
+      rules:
+        - alert: MemoryUsageHighError
+          expr: container_memory_working_set_bytes{namespace="lab1",container="api1"} * 100 / on (namespace, pod, container) kube_pod_container_resource_limits{namespace="lab1",container="api1",resource="memory"} > 90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Использование памяти составляет 90 процентов от лимита"
+            description: >-
+              Использование памяти составляет 90 процентов от лимита - возможен OOM.
+        - alert: OOMCausedRestart
+          expr: increase(kube_pod_container_status_restarts_total{namespace="lab1",container="api1"}[3m]) > 0 and on(namespace, pod, container) kube_pod_container_status_last_terminated_reason{namespace="lab1",container="api1",reason="OOMKilled"} == 1
+          labels:
+            severity: critical
+          annotations:
+            summary: "Рестарт контейнера из-за OOM"
+            description: >-
+              Рестарт контейнера из-за OOM
+        - alert: CPUThrottlingPeriodsHigh
+          expr: sum by (namespace, pod, container) (rate(container_cpu_cfs_throttled_periods_total{namespace="lab1",container="api1"}[5m]) * 100) / sum by (namespace, pod, container) (rate(container_cpu_cfs_periods_total{namespace="lab1",container="api1"}[5m])) > 50
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Периоды троттлинга превышают 50%"
+            description: "Растёт латентность запросов из-за троттлинга"

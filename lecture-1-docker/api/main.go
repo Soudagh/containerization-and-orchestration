@@ -21,7 +21,7 @@ var (
 )
 
 func health(w http.ResponseWriter, _ *http.Request) {
-	fmt.Fprintln(w, "ok")
+	fmt.Fprintln(w, "ok v2")
 }
 
 func eat(w http.ResponseWriter, r *http.Request) {
