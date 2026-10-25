@@ -1,0 +1,44 @@
+api:
+  replicas: 3
+  image:
+    repository: registry.shop.local/api
+    tag: "0.2.0"
+  healthFail: false
+  resources:
+    requests: { cpu: 50m, memory: 32Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+
+worker:
+  replicas: 2
+  image:
+    repository: registry.shop.local/worker
+    tag: "0.1.0"
+  healthFail: false
+  resources:
+    requests: { cpu: 50m, memory: 32Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+
+database:
+  secretName: shop-db-app
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 100m, memory: 512Mi }
+  storage:
+    size: 1Gi
+  instances: 1

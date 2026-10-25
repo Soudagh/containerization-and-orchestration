@@ -1,0 +1,35 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    release: kps
+    app.kubernetes.io/part-of: shop
+spec:
+  groups:
+    - name: shop.rules
+      rules:
+        - alert: ApiServiceHasNoConnectionToDBError
+          expr: shop_db_up{namespace="shop",container="api"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Api сервис перестал видеть БД"
+            description: Приложение не видит базу. Невозможно чтение и запись в базу, приложение не может корректно работать
+        - alert: ApiLatencyDegraded
+          expr: histogram_quantile(0.95, sum by(le) (rate(http_request_duration_seconds_bucket{namespace="shop", route != "/health"}[5m]))) > 3
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Запросы к апи превышают 3 секунды"
+            description: Запросы по методам api превышают три секунды - пользователь видит задержки в отображении приложения.
+        - alert: Api5XXErrorsHigh
+          expr: sum(rate(http_requests_total{namespace="shop", route != "/health", code =~ "5.."}[5m])) / sum(rate(http_requests_total{namespace="shop",route != "/health"}[5m])) > 0.3
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Больше 30 процентов запросов к api заершаются 5xx ошибками"
+            description: Больше 30 процентов запросов к api завершаются 500 ошибкой - приложение в какой-то части работает некорректно.

@@ -1,0 +1,35 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: trusted-registry
+  annotations:
+    policies.kyverno.io/description: >-
+      Образы в кластере должны стягиваться из проверенных и верифицированных реестров для безопасности и избегания атак
+spec:
+  background: true
+  rules:
+    - name: images-pulled-from-verified-registries
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - cnpg-system
+                - monitoring
+                - local-path-storage
+                - app
+                - lab1
+      validate:
+        failureAction: Enforce
+        message: "Каждый образ должен быть стянут из проверенного реестра registry.shop.local/"
+        pattern:
+          spec:
+            containers:
+              - image: "registry.shop.local/* | ghcr.io/cloudnative-pg/*"
+            =(initContainers):
+              - image: "registry.shop.local/* | ghcr.io/cloudnative-pg/*"

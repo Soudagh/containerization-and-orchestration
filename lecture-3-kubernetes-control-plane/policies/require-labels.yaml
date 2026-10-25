@@ -1,0 +1,34 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-labels
+  annotations:
+    policies.kyverno.io/description: >-
+      Для грамотной связности контейнеров и сети у каждого пода должны быть проставлены лейблы
+spec:
+  background: true
+  rules:
+    - name: require-labels
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - cnpg-system
+                - monitoring
+                - local-path-storage
+                - app
+                - lab1
+      validate:
+        failureAction: Enforce
+        message: "Каждый под должен иметь лейблы"
+        pattern:
+          metadata:
+            labels:
+              app.kubernetes.io/name: "?*"
+              app.kubernetes.io/part-of: "?*"

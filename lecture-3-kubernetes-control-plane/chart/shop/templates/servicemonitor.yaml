@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name  }}
+  labels:
+    release: kps
+    app.kubernetes.io/part-of: shop
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: ["api", "worker"]
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

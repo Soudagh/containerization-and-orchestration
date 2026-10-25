@@ -1,0 +1,39 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resources
+  annotations:
+    policies.kyverno.io/description: >-
+      Без лимитов один под может съесть всю ноду и выселить соседей (OOM, CPU-голод).
+spec:
+  background: true
+  rules:
+    - name: containers-have-requests-and-limits
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - cnpg-system
+                - monitoring
+                - local-path-storage
+                - app
+                - lab1
+      validate:
+        failureAction: Enforce
+        message: "Каждому контейнеру нужны resources.requests и resources.limits по cpu и memory."
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  requests:
+                    cpu: "?*"
+                    memory: "?*"
+                  limits:
+                    cpu: "?*"
+                    memory: "?*"

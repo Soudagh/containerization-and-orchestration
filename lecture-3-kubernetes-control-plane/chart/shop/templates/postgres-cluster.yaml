@@ -1,0 +1,15 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Release.Name }}-db
+spec:
+  inheritedMetadata:
+    labels:
+      {{- include "shop.labels" (dict "ctx" . "component" "postgres") | nindent 6 }}
+  instances:
+    {{ .Values.database.instances }}
+  storage:
+    size:
+      {{ .Values.database.storage.size }}
+  resources:
+    {{- toYaml .Values.database.resources | nindent 4 }}
