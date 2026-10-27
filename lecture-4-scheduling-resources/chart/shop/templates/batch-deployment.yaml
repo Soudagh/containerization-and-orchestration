@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-batch
+  labels:
+    {{- include "shop.labels" (dict "ctx" . "component" "batch") | nindent 4 }}
+spec:
+  replicas: {{ .Values.batch.replicas }}
+  selector:
+    matchLabels:
+      {{- include "shop.selectorLabels" (dict "ctx" . "component" "batch") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "shop.labels" (dict "ctx" . "component" "batch") | nindent 8 }}
+    spec:
+      containers:
+        - name: batch
+          image: "{{ .Values.batch.image.repository }}:{{ .Values.batch.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: CPU_WORKERS
+              value: {{ .Values.batch.cpuWorkers | quote }}
+            - name: MEMORY_MB
+              value: {{ .Values.batch.memoryMb | quote }}
+            - name: RAMP_SECONDS
+              value: {{ .Values.batch.rampSeconds | quote }}
+          resources:
+            {{- toYaml .Values.batch.resources | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.batch.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.batch.readinessProbe | nindent 12 }}
+      priorityClassName: {{ .Values.priorityClasses.batch.name }}
+      {{- with .Values.batch.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8}}
+    {{- end }}

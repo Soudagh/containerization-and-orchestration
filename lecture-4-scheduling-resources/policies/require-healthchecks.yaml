@@ -1,0 +1,43 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-healthchecks
+  annotations:
+    policies.kyverno.io/description: >-
+      Без хелсчеков не будет ясна доступность контейнера и его работоспособность
+    pod-policies.kyverno.io/autogen-controllers: Deployment,StatefulSet,DaemonSet,ReplicaSet
+
+spec:
+  background: true
+  rules:
+    - name: require-healthchecks
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - cnpg-system
+                - monitoring
+                - local-path-storage
+                - app
+                - lab1
+      validate:
+        failureAction: Enforce
+        message: "Каждому контейнеру нужны liveness и readiness пробы"
+        pattern:
+          spec:
+            containers:
+              - livenessProbe:
+                  periodSeconds: ">0"
+                readinessProbe:
+                  periodSeconds: ">0"
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.ownerReferences[0].kind || '' }}"
+            operator: NotEquals
+            value: Job

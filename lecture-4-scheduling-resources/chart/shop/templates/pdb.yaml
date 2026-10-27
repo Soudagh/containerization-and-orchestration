@@ -1,0 +1,11 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-api
+  labels:
+    {{- include "shop.labels" (dict "ctx" . "component" "api") | nindent 4 }}
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      {{- include "shop.selectorLabels" (dict "ctx" . "component" "api") | nindent 6 }}

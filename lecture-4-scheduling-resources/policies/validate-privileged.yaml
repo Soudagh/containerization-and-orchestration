@@ -1,0 +1,37 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: validate-privileged
+  annotations:
+    policies.kyverno.io/description: >-
+      Запуск контейнера в привилегированном режиме грозит возможностью атак и побега из контейнера
+spec:
+  background: true
+  rules:
+    - name: validate-privileged
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - cnpg-system
+                - monitoring
+                - local-path-storage
+                - app
+                - lab1
+      validate:
+        failureAction: Enforce
+        message: "Каждый контейнер не может быть запущен в привилегированном режиме"
+        pattern:
+          spec:
+            containers:
+              - =(securityContext):
+                  =(privileged): "false"
+            =(initContainers):
+              - =(securityContext):
+                  =(privileged): "false"

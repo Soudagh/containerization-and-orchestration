@@ -1,0 +1,43 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    release: kps
+    app.kubernetes.io/part-of: shop
+spec:
+  groups:
+    - name: shop.rules
+      rules:
+        - alert: ApiServiceHasNoConnectionToDBError
+          expr: shop_db_up{namespace="shop",container="api"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Api сервис перестал видеть БД"
+            description: Приложение не видит базу. Невозможно чтение и запись в базу, приложение не может корректно работать
+        - alert: OrderLatencySLABreached
+          expr: histogram_quantile(0.99, sum by(le) (rate(http_request_duration_seconds_bucket{namespace="shop", route="/order"}[5m]))) > 0.25
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "p99 задержки /order выше 250 ms"
+            description: p99 задержки создания заказа на окне 5 минут выше порога из SLA - часть пользователей ждёт оформления заказа заметно дольше обычного.
+        - alert: OrderErrorsSLABreached
+          expr: sum(rate(http_requests_total{namespace="shop", route="/order", code !~ "2.."}[5m])) / sum(rate(http_requests_total{namespace="shop", route="/order"}[5m])) > 0.01
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Больше 1 процента запросов /order завершаются не 2xx"
+            description: Больше 1 процента заказов на окне 5 минут не создаются - теряем заказы, нарушен SLA по ошибкам.
+        - alert: ApiCPUThrottlingHigh
+          expr: sum(rate(container_cpu_cfs_throttled_periods_total{namespace="shop", container="api"}[5m])) / sum(rate(container_cpu_cfs_periods_total{namespace="shop", container="api"}[5m])) > 0.3
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "api троттлится больше чем в 30 процентах периодов CFS"
+            description: api упирается в свой CPU-лимит - запросы ждут конца периода CFS, растёт хвост задержки. Лимит и request api пора пересмотреть.
