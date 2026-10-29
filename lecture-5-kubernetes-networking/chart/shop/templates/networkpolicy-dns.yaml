@@ -1,0 +1,28 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+# DNS для всех подов shop. CiliumNetworkPolicy вместо обычной NetworkPolicy ради L7-правила dns:
+# с ним Cilium пропускает DNS через свой прокси, разбирает запросы и отдаёт метрики hubble_dns_*
+# по каждому workload - кто спрашивает, что получает, есть ли NXDOMAIN/SERVFAIL.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-dns
+  labels:
+    {{- include "shop.labels" (dict "ctx" . "component" "network") | nindent 4 }}
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ $np.dns.namespace }}
+            {{- range $k, $v := $np.dns.podLabels }}
+            {{ $k }}: {{ $v }}
+            {{- end }}
+      toPorts:
+        - ports:
+            - port: {{ $np.dns.port | quote }}
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"
+{{- end }}

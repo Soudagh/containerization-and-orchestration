@@ -1,0 +1,142 @@
+api:
+  replicas: 3
+  image:
+    repository: registry.shop.local/api
+    tag: "0.1.0"
+  healthFail: false
+  resources:
+    requests: { cpu: 200m, memory: 100Mi }
+    limits: { cpu: 200m, memory: 100Mi }
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+  spread:
+    mode: topologySpread # topologySpread | antiAffinity
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+  antiAffinityConstraints:
+    type: preferred
+    topologyKey: kubernetes.io/hostname
+  type: NodePort # Service | NodePort | ClusterIP
+  nodePort: 30080
+
+worker:
+  replicas: 2
+  image:
+    repository: registry.shop.local/worker
+    tag: "0.1.0"
+  healthFail: false
+  resources:
+    requests: { cpu: 10m, memory: 100Mi }
+    limits: { cpu: 100m, memory: 100Mi }
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+
+database:
+  secretName: shop-db-app
+  resources:
+    requests: { cpu: 350m, memory: 256Mi }
+    limits: { cpu: 350m, memory: 256Mi }
+  storage:
+    size: 1Gi
+  instances: 1
+
+batch:
+  replicas: 0
+  image:
+    repository: registry.shop.local/batch
+    tag: "0.1.0"
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 1000m, memory: 1280Mi }
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+  cpuWorkers: 1
+  memoryMb: 1100
+  nodeSelector:
+    kubernetes.io/hostname: lab4-worker
+
+priorityClasses:
+  critical:
+    name: shop-critical
+    value: 100000
+    description: "Критический путь заказа: api, postgres"
+  worker:
+    name: shop-worker
+    value: 1000
+    description: "Фоновый воркер для БД"
+  batch:
+    name: shop-batch
+    value: 100
+    description: "Фоновая аналитика"
+
+dashboard:
+  enabled: true
+
+loadgen:
+  enabled: true
+  replicas: 1
+  image:
+    repository: registry.shop.local/loadgen
+    tag: "0.1.0"
+  rps: 20
+  keepalive: true
+  resources:
+    requests: { cpu: 10m, memory: 100Mi }
+    limits: { cpu: 100m, memory: 100Mi }
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+
+networkPolicy:
+  enabled: true
+  dns:
+    namespace: kube-system
+    podLabels: { k8s-app: kube-dns }
+    port: 53
+  monitoring:
+    namespace: monitoring
+    podLabels: { app.kubernetes.io/name: prometheus }
+  cnpgOperator:
+    namespace: cnpg-system
+    podLabels: { app.kubernetes.io/name: cloudnative-pg }
+  ports:
+    app: 8080
+    postgres: 5432
+    postgresStatus: 8000
+  selectors:
+    postgres: { app.kubernetes.io/name: postgres }
+  broadDeny: false
+  externalEntities: [world, remote-node]
+
+# метрики Hubble из агентов Cilium - сервис hubble-metrics в kube-system
+hubbleMetrics:
+  enabled: true
+  namespace: kube-system
+  serviceLabels: { k8s-app: hubble }
+  port: hubble-metrics
+  interval: 15s

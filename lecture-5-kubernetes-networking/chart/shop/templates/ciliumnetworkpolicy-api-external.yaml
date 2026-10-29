@@ -1,0 +1,20 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-api-external
+  labels:
+    {{- include "shop.labels" (dict "ctx" . "component" "api") | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "shop.selectorLabels" (dict "ctx" . "component" "api") | nindent 6 }}
+  ingress:
+    - fromEntities:
+        {{- toYaml $np.externalEntities | nindent 8 }}
+      toPorts:
+        - ports:
+            - port: {{ $np.ports.app | quote }}
+              protocol: TCP
+{{- end }}

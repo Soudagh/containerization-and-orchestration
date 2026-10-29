@@ -1,0 +1,35 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-loadgen
+  labels:
+    {{- include "shop.labels" (dict "ctx" . "component" "loadgen") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "shop.selectorLabels" (dict "ctx" . "component" "loadgen") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $np.monitoring.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $np.monitoring.podLabels | nindent 14 }}
+      ports:
+        - port: {{ $np.ports.app }}
+          protocol: TCP
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "shop.selectorLabels" (dict "ctx" . "component" "api") | nindent 14 }}
+      ports:
+        - port: {{ $np.ports.app }}
+          protocol: TCP
+{{- end }}

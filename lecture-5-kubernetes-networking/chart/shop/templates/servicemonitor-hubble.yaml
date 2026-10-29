@@ -1,0 +1,20 @@
+{{- if .Values.hubbleMetrics.enabled }}
+{{- $h := .Values.hubbleMetrics }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-hubble
+  labels:
+    release: kps
+    app.kubernetes.io/part-of: shop
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ $h.namespace }}
+  selector:
+    matchLabels:
+      {{- toYaml $h.serviceLabels | nindent 6 }}
+  endpoints:
+    - port: {{ $h.port }}
+      interval: {{ $h.interval }}
+{{- end }}

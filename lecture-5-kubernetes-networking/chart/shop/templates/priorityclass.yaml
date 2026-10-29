@@ -1,0 +1,12 @@
+{{- range $key, $pc := .Values.priorityClasses }}
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ $pc.name }}
+  labels:
+    app.kubernetes.io/part-of: shop
+value: {{ $pc.value }}
+globalDefault: false
+description: {{ $pc.description | quote }}
+{{- end}}

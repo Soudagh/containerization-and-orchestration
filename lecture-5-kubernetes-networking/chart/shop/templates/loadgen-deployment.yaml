@@ -1,0 +1,39 @@
+{{- if .Values.loadgen.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-loadgen
+  labels:
+    {{- include "shop.labels" (dict "ctx" . "component" "loadgen") | nindent 4 }}
+spec:
+  replicas: {{ .Values.loadgen.replicas }}
+  selector:
+    matchLabels:
+      {{- include "shop.selectorLabels" (dict "ctx" . "component" "loadgen") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "shop.labels" (dict "ctx" . "component" "loadgen") | nindent 8 }}
+    spec:
+      containers:
+        - name: loadgen
+          image: "{{ .Values.loadgen.image.repository }}:{{ .Values.loadgen.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: TARGET
+              value: http://{{ .Release.Name }}-api:8080
+            - name: RPS
+              value: {{ .Values.loadgen.rps | quote }}
+            - name: KEEPALIVE
+              value: {{ .Values.loadgen.keepalive | quote }}
+          resources:
+            {{- toYaml .Values.loadgen.resources | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.loadgen.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.loadgen.readinessProbe | nindent 12 }}
+      priorityClassName: {{ .Values.priorityClasses.batch.name }}
+{{- end }}

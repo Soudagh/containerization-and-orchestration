@@ -1,0 +1,69 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    release: kps
+    app.kubernetes.io/part-of: shop
+spec:
+  groups:
+    - name: shop.rules
+      rules:
+        - alert: ApiServiceHasNoConnectionToDBError
+          expr: shop_db_up{namespace="shop",container="api"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Api сервис перестал видеть БД"
+            description: Приложение не видит базу. Невозможно чтение и запись в базу, приложение не может корректно работать
+        - alert: OrderLatencySLABreached
+          expr: histogram_quantile(0.99, sum by(le) (rate(http_request_duration_seconds_bucket{namespace="shop", route="/order"}[5m]))) > 0.25
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "p99 задержки /order выше 250 ms"
+            description: p99 задержки создания заказа на окне 5 минут выше порога из SLA - часть пользователей ждёт оформления заказа заметно дольше обычного.
+        - alert: OrderErrorsSLABreached
+          expr: sum(rate(http_requests_total{namespace="shop", route="/order", code !~ "2.."}[5m])) / sum(rate(http_requests_total{namespace="shop", route="/order"}[5m])) > 0.01
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Больше 1 процента запросов /order завершаются не 2xx"
+            description: Больше 1 процента заказов на окне 5 минут не создаются - теряем заказы, нарушен SLA по ошибкам.
+        - alert: ApiCPUThrottlingHigh
+          expr: sum(rate(container_cpu_cfs_throttled_periods_total{namespace="shop", container="api"}[5m])) / sum(rate(container_cpu_cfs_periods_total{namespace="shop", container="api"}[5m])) > 0.3
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "api троттлится больше чем в 30 процентах периодов CFS"
+            description: api упирается в свой CPU-лимит - запросы ждут конца периода CFS, растёт хвост задержки. Лимит и request api пора пересмотреть.
+    - name: shop.network
+      rules:
+        - alert: ShopTrafficDeniedByPolicy
+          expr: sum by (source, destination, reason) (rate(hubble_drop_total{reason=~"POLICY_DENIED|POLICY_DENY", source=~"shop-(api|worker|loadgen).*|prometheus-.*|reserved:host|reserved:kube-apiserver|coredns.*"}[5m])) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Политика режет ожидаемый трафик: {{`{{ $labels.source }}`}} -> {{`{{ $labels.destination }}`}} ({{`{{ $labels.reason }}`}})"
+            description: Сетевая политика отбрасывает трафик легитимного участника матрицы - сервиса shop, prometheus, проб kubelet, kube-apiserver или coredns. POLICY_DENIED - нет разрешающего правила, POLICY_DENY - сработало явное запрещающее. Скорее всего, ошибка в NetworkPolicy - порт, метки или пропавшее правило. Смотреть hubble observe --verdict DROPPED.
+        - alert: ShopDNSServerErrors
+          expr: sum by (rcode) (rate(hubble_dns_responses_total{source_namespace="shop", rcode!~"No Error|Non-Existent Domain"}[5m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DNS отвечает подам shop ошибками: {{`{{ $labels.rcode }}`}}"
+            description: CoreDNS отвечает подам shop не No Error и не NXDOMAIN, например SERVFAIL или REFUSED - резолв имён сервисов нестабилен. NXDOMAIN не считаем - он есть всегда из-за ndots и search-доменов.
+        - alert: ShopClientRequestsFailing
+          expr: sum(rate(loadgen_requests_total{namespace="shop", result!="ok"}[2m])) / sum(rate(loadgen_requests_total{namespace="shop"}[2m])) > 0.05
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Больше 5 процентов запросов клиента к api падают"
+            description: Клиент shop видит ошибки соединения или ответа больше чем в 5 процентах запросов - пользователи не могут оформить заказ. Это симптом, причину искать в ShopTrafficDeniedByPolicy, логах loadgen и api.

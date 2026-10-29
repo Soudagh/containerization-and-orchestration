@@ -1,0 +1,3 @@
+networkPolicy:
+  selectors:
+    postgres: { app.kubernetes.io/name: postgresql }
