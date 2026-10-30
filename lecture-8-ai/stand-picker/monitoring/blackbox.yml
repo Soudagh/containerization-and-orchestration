@@ -1,0 +1,9 @@
+modules:
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      preferred_ip_protocol: ip4   # host.docker.internal резолвится и в IPv6, а маршрута по нему нет
+  tcp_connect:
+    prober: tcp
+    timeout: 5s

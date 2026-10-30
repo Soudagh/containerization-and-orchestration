@@ -1,0 +1,84 @@
+# stand-picker: n8n + два MCP-сервера для агента, который подбирает тестовый стенд под задачу.
+# Ollama с моделью qwen3:8b работает на хосте, n8n ходит к нему через host.docker.internal:11434.
+# Все порты опубликованы только на 127.0.0.1.
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.45.5
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      GENERIC_TIMEZONE: Europe/Moscow
+      TZ: Europe/Moscow
+      N8N_METRICS: "true"                       # /metrics в формате Prometheus для части 4
+      N8N_METRICS_INCLUDE_WORKFLOW_ID_LABEL: "true"
+      N8N_METRICS_INCLUDE_NODE_TYPE_LABEL: "true"
+      N8N_METRICS_INCLUDE_API_ENDPOINTS: "true"
+      N8N_METRICS_INCLUDE_QUEUE_METRICS: "true"
+      N8N_RUNNERS_ENABLED: "true"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./data:/data                            # та же база броней - для не-AI шагов бронирования
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on: [mcp-environments, mcp-reservations]
+
+  # MCP 1: описания стендов - свободный текст, только чтение
+  mcp-environments:
+    image: supercorp/supergateway:latest
+    command:
+      - --stdio
+      - npx -y @modelcontextprotocol/server-filesystem /data/environments
+      - --outputTransport
+      - streamableHttp
+      - --port
+      - "8000"
+    volumes:
+      - ./data/environments:/data/environments:ro
+
+  # MCP 2: брони стендов - SQLite, структурированное состояние
+  mcp-reservations:
+    image: supercorp/supergateway:uvx
+    command:
+      - --stdio
+      - uvx --with "mcp<2" mcp-server-sqlite --db-path /data/db/reservations.db   # сервер старый, с mcp 2.x несовместим
+      - --outputTransport
+      - streamableHttp
+      - --port
+      - "8000"
+    volumes:
+      - ./data/db:/data/db
+
+  # мониторинг: Prometheus собирает метрики n8n и проверки доступности, Grafana их показывает
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+    command: [--config.file=/etc/prometheus/prometheus.yml, --web.enable-lifecycle]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  blackbox:
+    image: prom/blackbox-exporter:v0.25.0
+    volumes:
+      - ./monitoring/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:13.2.3-distroless
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"         # порт только на 127.0.0.1, вход без логина для скринов
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/stand-picker.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [prometheus]
+
+volumes:
+  n8n_data:

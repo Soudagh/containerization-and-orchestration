@@ -1,0 +1,32 @@
+# алерты для stand-picker
+groups:
+  - name: stand-picker
+    rules:
+      - alert: StandPickerRunsFailing
+        expr: |
+          sum(increase(n8n_workflow_execution_duration_seconds_count{status!="success"}[1h]))
+            / sum(increase(n8n_workflow_execution_duration_seconds_count[1h])) > 0.5
+          and sum(increase(n8n_workflow_execution_duration_seconds_count[1h])) >= 2
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "больше половины запусков подбора стенда за час упали"
+
+      - alert: StandPickerDependencyDown
+        expr: probe_success{job=~"ollama|mcp"} != 1
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }} недоступен"
+
+      - alert: StandPickerSlowRuns
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(n8n_workflow_execution_duration_seconds_bucket{status="success"}[1h]))) > 240
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 длительности подбора стенда выше 4 минут"
